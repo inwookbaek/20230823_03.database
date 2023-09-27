@@ -185,7 +185,7 @@ create or replace view v_max_sal_02 as
 select emp.deptno 부서번호
      , dpt.dname  부서이름
 		 , max(sal)   최대급여
-  from emp
+  from emp  
 		 , dept dpt
  where emp.deptno = dpt.deptno
  group by emp.deptno, dpt.dname
