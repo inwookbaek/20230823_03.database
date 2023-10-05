@@ -704,7 +704,7 @@ call update_sal_emp(7369, 10);
 -- 프로시저명 : pro_sal_raise
 -- for문, type is table of
 -- '사원번호 chr(9) 사원이름 chr(9) 인상급여' 형태로 출력해 보기
-create or replace procedure pro_sal_raise(p_deptno in number, p_percent in number) is
+create or replace procedure pro_sal_raise(xxxx in number, p_percent in number) is
 	
 	type t_emp is table of emp%rowtype index by binary_integer;
 	v_emp   t_emp;
@@ -742,6 +742,79 @@ end pro_sal_raise;
 call pro_sal_raise(10, 15);
 call pro_sal_raise(20, 5);
 call pro_sal_raise(30, 8);
+
+-- data dictionary
+-- 소유객체목록
+select * from user_objects;
+select distinct object_type from user_objects;
+select * from user_objects where object_type = 'PROCEDURE';
+
+/*
+	F. in, out 매개변수가 있는 프로시저 생성하기
+	
+	create or replace procedure 프로시저명(매개변수1 in 데이터타입, 매개변수2 out 데이터타입...)
+	begin
+	end;
+*/
+-- 1. in, out매개변수
+-- 사원번호를 전달(in)받아서 사원명과 급여, 직책을 리턴(out) procedure
+create or replace procedure emp_sal_job(
+		p_empno in number
+	, p_ename out varchar2
+	, p_sal out number
+	, p_job out varchar2) is
+begin
+
+	select ename, sal, job
+	  into p_ename, p_sal, p_job
+	  from emp
+	 where empno = p_empno;
+	 
+exception when others then
+	dbms_output.put_line('예외가 발생했습니다!!!');	
+		
+end emp_sal_job;
+
+-- in,out이 있는 프로시저는 pl/sql내부에서 사용해야 한다.
+-- 외부에서 호출할 경우 에러가 발생한다.
+call emp_sal_job(7369); --> ORA-06553: PLS-306: wrong number or types of arguments in call to 'EMP_SAL_JOB
+call emp_sal_job(7369, '', 0, ''); --> ORA-06577: output parameter not a bind variable
+
+-- 익명프로시저
+declare
+	v_ename 	varchar2(20);
+	v_sal     number;
+	v_job     varchar2(20);
+begin
+	-- 프로시저내부에서는 call, exec, execute을 사용할 수 없고
+	-- 직접호출해야 한다.
+	emp_sal_job(7369, v_ename, v_sal, v_job);
+	dbms_output.put_line('사원이름 = ' || v_ename);	
+	dbms_output.put_line('사원급여 = ' || v_sal);	
+	dbms_output.put_line('사원직급 = ' || v_job);	
+end;
+
+/* 연습문제 */
+-- view문제를 기초로 자유롭게 procedure를 작성하세요!
+-- 매개변수를 받아서 만드는 것을 기본으로 하고
+-- 	dbms_output.put_line('========================================================');
+-- 	dbms_output.put_line('교수명' || chr(9) || '교수번호' || chr(9) || '학과명');
+-- 	dbms_output.put_line('========================================================');
+-- 콘솔창에 출력(dbms_output.put_line)하는 프로시저를 작성해 보세요!!
+-- 프로시저명 ex01~ex06
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
