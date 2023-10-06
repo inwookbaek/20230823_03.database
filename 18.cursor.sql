@@ -137,7 +137,7 @@ call pro_20(30);
 call pro_20(40);
 
 
--- 2) 여러건 : for문안에 커서를 사용하기\
+-- 2) 여러건 : for문안에 커서를 사용하기
 -- for문을 사용하면 open, fetch, close가 자동으로 진행되기 때문에
 -- 별도로 기술할 필요가 없고 레코드이름도 자동으로 선언되기 때문에 별도로
 -- 선언할 필요가 없다.
@@ -298,21 +298,177 @@ select * from sungjuk;
 select * from sungresult;
 
 create or replace procedure pro_25 is
+
+	cursor c_sungjuk is select * from sungjuk;
+	cursor c_sungresult is select hakbun, tot from sungresult;
+	
+	v_hakbun  sungjuk.hakbun%type;
+	v_name    sungjuk.name%type;
+	v_kor     sungjuk.kor%type;
+	v_eng     sungjuk.eng%type;
+	v_mat     sungjuk.mat%type;
+	
+	v_tot     sungresult.tot%type;
+	v_avg     sungresult.avg%type;
+	v_hak     sungresult.hak%type;
+	v_pass    sungresult.pass%type;
+	v_rank    sungresult.rank%type;
 begin
+
+  -- 1. 결과파일 삭제
+	delete from sungresult;
+	commit;
+	
+	-- 2. 결과파일 생성
+	open c_sungjuk;
+
+	loop
+		fetch c_sungjuk into v_hakbun, v_name, v_kor, v_eng, v_mat;
+		exit when c_sungjuk%notfound;
+		
+	  v_tot  := v_kor + v_eng + v_mat;
+		v_avg  := round(v_tot/3, 2);
+		
+		if      v_avg >= 95 then v_hak := 'A+';
+			elsif v_avg >= 90 then v_hak := 'A0';
+			elsif v_avg >= 85 then v_hak := 'B+';
+			elsif v_avg >= 80 then v_hak := 'B0';	
+			elsif v_avg >= 70 then v_hak := 'C0';	
+			elsif v_avg >= 60 then v_hak := 'D0';
+			else  v_hak := 'F';
+		end if;
+		
+		if v_avg >= 70
+		   then v_pass := 'pass';
+			 else v_pass := 'fail';
+		end if;					
+	
+	  insert into sungresult(hakbun, name, kor, eng, mat, tot, avg, hak, pass, rank)
+		                values(v_hakbun, v_name, v_kor, v_eng, v_mat, v_tot, v_avg, v_hak, v_pass, 0);
+		commit;
+	end loop;
+	
+	close c_sungjuk;
+
+  -- 3. 순위결과
+	open c_sungresult;
+	
+	loop
+		fetch c_sungresult into v_hakbun, v_tot;
+		exit when c_sungresult%notfound;
+		
+		select count(*) + 1
+		  into v_rank
+			from sungresult
+		 where tot > v_tot;
+		 
+		 update sungresult
+		    set rank   = v_rank
+			where hakbun = v_hakbun;
+		
+		 commit;
+		 
+	end loop;
+
+	close c_sungresult;
+	
+exception
+		when others then dbms_output.put_line(sqlerrm || ' 에러가 발생했습니다!');
+
 end pro_25;
+
+call pro_25();
+select * from sungresult order by rank;
 
 
 /* 연습문제 */
 -- ex01) 두 숫자를 제공하면 덧셈을 해서 결과값을 반환하는 함수를 정의
 -- 함수명은 add_num
+create or replace function add_num(num1 in number, num2 in number) return number is
+	v_result    number;
+begin
+	v_result := num1 + num2;
+	return v_result;
+end add_num;
+
+select add_num(10, 20) from dual;
+select empno
+     , ename
+		 , sal
+		 , comm
+		 , add_num(sal, nvl(comm, 0))
+  from emp;
 
 -- ex02) 부서번호를 입력하면 해당 부서에서 근무하는 사원 수를 반환하는 함수를 정의
 -- 함수명은 get_emp_count
+create or replace function get_emp_count(p_deptno in emp.deptno%type) return number is
+	v_count   number;
+begin
+	select count(*)
+	  into v_count
+		from emp
+	 where deptno = p_deptno;
+	 
+	 return v_count;
+
+end get_emp_count;
+
+select get_emp_count(10) from dual;
+
+select deptno
+     , dname
+		 , get_emp_count(deptno) 부서인원수
+  from dept;
+
 
 -- ex03) emp에서 사원번호를 입력하면 해당 사원의 관리자 이름을 구하는 함수
 -- 함수명 get_mgr_name
+create or replace function get_mgr_name(p_empno in emp.empno%type) return varchar2 is
+	v_mgr_name   emp.ename%type;
+begin
+
+	select ename
+	  into v_mgr_name
+		from emp
+	 where empno = (select mgr from emp where empno = p_empno);
+
+	return v_mgr_name;
+end get_mgr_name;
+
+select empno
+     , ename
+		 , get_mgr_name(empno) 매니저명
+ from emp;
 
 -- ex04) emp테이블을 이용해서 사원번호를 입력하면 급여 등급을 구하는 함수
 -- 4000~5000 A, 3000~4000미만 B, 2000~3000미만 C, 1000~200미만 D, 1000미만 F 
 -- 함수명 get_sal_grade
+create or replace function get_sal_grade(p_empno in emp.empno%type) return varchar2 is
+	v_sal    emp.sal%type;
+	v_grade  varchar2(10);
+begin
+	
+	select sal
+	  into v_sal
+	  from emp
+	 where empno = p_empno;
+	 
+	case 
+		when 4000 <= v_sal then v_grade := 'A';
+		when 3000 <= v_sal then v_grade := 'B';
+		when 2000 <= v_sal then v_grade := 'C';
+		when 1000 <= v_sal then v_grade := 'D';
+	  else v_grade := 'F';
+	end case;
+ 
+	return v_grade;
 
+end get_sal_grade;
+
+select get_sal_grade(7839) from dual;
+
+select empno
+     , ename
+		 , sal
+		 , get_sal_grade(empno) 등급
+  from emp;
